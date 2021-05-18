@@ -1,0 +1,208 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: | 
+  'This template creates a roles. polcies and users needed for creating the DoIT enterprise Dataa Lake.
+Parameters:
+  Environment:
+    Description: Environment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+  BucketPrefix:
+    Description: S3 bucket prefix for file storage
+    Type: String
+    Default: doit-edl
+  SourceAgencyS3BucketName:
+    Description: Source Data Source  S3 bucket name
+    Type: String
+    Default: source-s3-bucket
+  DataLakeAdminPassword:
+    Description: Enter DataLakeAdminPassword
+    Type: String
+  DataLakeAnalystPassword:
+    Description: Enter DataLakeAnalystPassword
+    Type: String
+Resources:
+  # This is a Lake Formation Work FLow policy which is used by Glue and it's operations ( Running Glue Crawler)
+  GlueServiceRolePolicyForLK:
+    DependsOn: GlueRole
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'lakeformation:GetDataAccess'
+              - 'lakeformation:GrantPermissions'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'iam:PassRole'
+            Resource:
+              - !Sub 'arn:aws:iam::${AWS::AccountId}:role/doit-edl-LakeFormationWorkflowRole'
+      PolicyName: doit-edl-LakeFormationWorkflow
+      Roles: 
+         -  !Ref GlueRole
+
+ # This policy allows to access the specified S3 bucket. 
+  GlueServiceRolePolicyForS3forGlue:
+    DependsOn: GlueRole
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Sid: PermissionForObjectOperations
+            Effect: Allow
+            Action:
+              - 's3:Get*'
+              - 's3:Put*'
+            Resource:
+              - !Sub 'arn:aws:s3:::${BucketPrefix}-${Environment}-${SourceAgencyS3BucketName}'
+              - !Sub 'arn:aws:s3:::${BucketPrefix}-${Environment}-${SourceAgencyS3BucketName}/*'
+          - Effect: Allow
+            Action: 's3:ListAllMyBuckets'
+            Resource: '*'
+      PolicyName: doit-edl-glueservices3access-glue
+      Roles: 
+         -  !Ref GlueRole
+  
+  # Create a IAM Role for LakeFormation Work flow
+  GlueRole:
+        Type: AWS::IAM::Role
+        Properties:
+          AssumeRolePolicyDocument: 
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Principal:
+                    Service:
+                      - glue.amazonaws.com
+                  Action:
+                      - 'sts:AssumeRole'
+          RoleName: doit-edl-LakeFormationWorkflowRole
+          ManagedPolicyArns:
+            -  'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'
+  
+  # Create a Data Lake Administrator User
+  DataLakeAdmin:
+    Type: 'AWS::IAM::User'
+    Properties:
+      UserName: doit-edl-data-lake-admin
+      LoginProfile: 
+          Password: !Sub ${DataLakeAdminPassword}
+          PasswordResetRequired: false
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSLakeFormationDataAdmin'
+        - 'arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/AWSLakeFormationCrossAccountManager'
+        - 'arn:aws:iam::aws:policy/AmazonAthenaFullAccess'
+
+# Create a Data Lake Anayst User
+  DataLakeAnalyst:
+    Type: 'AWS::IAM::User'
+    Properties:
+      UserName: doit-edl-data-lake-analyst
+      LoginProfile: 
+          Password: !Sub ${DataLakeAnalystPassword}
+          PasswordResetRequired: false
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSLakeFormationDataAdmin'
+        - 'arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/AWSLakeFormationCrossAccountManager'
+        - 'arn:aws:iam::aws:policy/AmazonAthenaFullAccess'
+
+  # Create an Service Linked Role Policy 
+  ServiceLinkedRoleLKPolicy:
+    DependsOn: DataLakeAdmin
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: 'iam:CreateServiceLinkedRole'
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'iam:AWSServiceName': lakeformation.amazonaws.com
+          - Effect: Allow
+            Action:
+              - 'iam:PutRolePolicy'
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/lakeformation.amazonaws.com/AWSServiceRoleForLakeFormationDataAccess
+      PolicyName: doit-edl-LakeFormationSLR
+      Users: 
+         -  !Ref DataLakeAdmin 
+         -  !Ref DataLakeAnalyst 
+  
+# This policy allows to access the specified S3 bucket to Dalake Admin. 
+  GlueServiceRolePolicyForS3foradmin:
+    DependsOn: DataLakeAdmin
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Sid: PermissionForObjectOperations
+            Effect: Allow
+            Action:
+              - 's3:Get*'
+              - 's3:Put*'
+            Resource:
+              - !Sub 'arn:aws:s3:::${BucketPrefix}-${Environment}-${SourceAgencyS3BucketName}'
+              - !Sub 'arn:aws:s3:::${BucketPrefix}-${Environment}-${SourceAgencyS3BucketName}/*'
+          - Effect: Allow
+            Action: 's3:ListAllMyBuckets'
+            Resource: '*'
+      PolicyName: doit-edl-glueservices3access-admin
+      Users:  
+          - !Ref DataLakeAdmin
+          - !Ref DataLakeAnalyst 
+
+  # Create an doit-edl-UserPassRoleLKPolicy for Datalake Admin. 
+  UserPassRoleLKPolicy:
+    DependsOn: DataLakeAdmin
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Sid: PassRolePermissions
+            Effect: Allow
+            Action:
+              - 'iam:PassRole'
+            Resource:
+              -  !Sub 'arn:aws:iam::${AWS::AccountId}:role/doit-edl-LakeFormationWorkflowRole'
+
+      PolicyName: doit-edl-UserPassRole
+      Users: 
+         -  !Ref DataLakeAdmin 
+         -  !Ref DataLakeAnalyst  
+
+  # Create a RAM Access Policy. 
+  RAMAccessLKPolicy:
+    DependsOn: DataLakeAdmin
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'ram:AcceptResourceShareInvitation'
+              - 'ram:RejectResourceShareInvitation'
+              - 'ec2:DescribeAvailabilityZones'
+              - 'ram:EnableSharingWithAwsOrganization'
+            Resource: '*'
+
+      PolicyName: doit-edl-RAMAccess
+      Users: 
+         -  !Ref DataLakeAdmin    
+         -  !Ref DataLakeAnalyst        
+
+
