@@ -1,0 +1,68 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'This Stack created, IAM USers, Policies and Roles needed for Data Lake Formation'
+Parameters:
+  Environment:
+    Description: Environment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+  ResourcePrefix:
+    Description: S3 bucket prefix for file storage
+    Type: String
+    Default: doit_edl
+  DataLakeDatabaseName:
+    Description: Name of the DataLake Database Name
+    Type: String
+    Default: source-database
+  SourceAgencyS3BucketName:
+    Description: Source Data Source  S3 bucket name
+    Type: String
+    Default: source_s3_bucket
+Resources:
+
+ # Grants Permissions to A ROLE on a table for Datalake Admin Role
+  LFGrantTablePermissionsToDLAdminUser:
+    Type: AWS::LakeFormation::Permissions
+    Properties:
+        DataLakePrincipal: 
+          DataLakePrincipalIdentifier: 
+            !Sub 'arn:aws:iam::${AWS::AccountId}:user/doit-edl-data-lake-admin'
+        Permissions:
+          - SELECT
+          - ALTER
+          - DESCRIBE
+        PermissionsWithGrantOption:
+          - SELECT
+          - ALTER
+          - DESCRIBE
+        Resource: 
+          TableResource:
+            CatalogId: 
+              !Sub ${AWS::AccountId}
+            DatabaseName: !Sub 'doit-edl-${Environment}-${DataLakeDatabaseName}'
+            Name: !Sub '${ResourcePrefix}_${Environment}_${SourceAgencyS3BucketName}'
+ 
+ # Grants Permissions to A ROLE on a table for Datalake Analyst Role
+  LFGrantTablePermissionsToDLAnalystUser:
+    Type: AWS::LakeFormation::Permissions
+    Properties:
+        DataLakePrincipal: 
+          DataLakePrincipalIdentifier: 
+            !Sub 'arn:aws:iam::${AWS::AccountId}:user/doit-edl-data-lake-analyst'
+        Permissions:
+          - SELECT
+          - DESCRIBE
+        PermissionsWithGrantOption:
+          - SELECT
+          - DESCRIBE
+        Resource: 
+          TableResource:
+            CatalogId: 
+              !Sub ${AWS::AccountId}
+            DatabaseName: !Sub 'doit-edl-${Environment}-${DataLakeDatabaseName}'
+            Name: !Sub '${ResourcePrefix}_${Environment}_${SourceAgencyS3BucketName}'
+ 
+

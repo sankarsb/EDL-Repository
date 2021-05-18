@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  This template creates the S3 buckets needed fot DoIT Enterprise Data Lake Sources
+Parameters:
+  Environment:
+    Description: Environment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+  ProjectName:
+    Description: Project Name
+    Type: String
+    Default: DoIT Enterprise Data Lake
+    AllowedValues:
+      - DoIT Enterprise Data Lake
+  ProjectShortName:
+    Description: Set CustomerSpecific Tag
+    Type: String
+    Default: DOITEDL
+  BucketPrefix:
+    Description: S3 bucket prefix for file storage
+    Type: String
+    Default: doit-edl
+  SourceAgencyS3BucketName:
+    Description: Source Data Source  S3 bucket name
+    Type: String
+    Default: source-s3-bucket
+  TargetAgencyS3BucketName:
+    Description: Target Data Source  S3 bucket name
+    Type: String
+    Default: target-s3-bucket
+Resources:
+  SourceAgencyS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - !Ref BucketPrefix
+          - !Ref Environment
+          - !Ref SourceAgencyS3BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${BucketPrefix}-${Environment}-${SourceAgencyS3BucketName}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: ProjectShortName
+          Value: !Ref ProjectShortName
+  TargetAgencyS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - !Ref BucketPrefix
+          - !Ref Environment
+          - !Ref TargetAgencyS3BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${BucketPrefix}-${Environment}-${TargetAgencyS3BucketName}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: ProjectShortName
+          Value: !Ref ProjectShortName
+Outputs:
+  SourceAgencyS3BucketArn:
+    Value: !GetAtt 
+      - SourceAgencyS3Bucket
+      - Arn
+    Export:
+      Name: !Sub '${BucketPrefix}-${Environment}-${SourceAgencyS3BucketName}-arn'
+    Description: The ARN of the source agency S3 Bucket
+  TargetAgencyS3BucketArn:
+    Value: !GetAtt 
+      - TargetAgencyS3Bucket
+      - Arn
+    Export:
+      Name: !Sub '${BucketPrefix}-${Environment}-${TargetAgencyS3BucketName}-arn'
+    Description: The ARN of the target agency S3 Bucket
